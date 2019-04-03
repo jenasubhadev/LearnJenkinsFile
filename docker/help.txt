@@ -8,5 +8,5 @@ GitHub:
 https://github.com/rchidana/NodeApp
 
 
-Blog :
+Blog - Jenkinsfile Docker pipeline multi stage :
 http://pietervogelaar.nl/jenkinsfile-docker-pipeline-multi-stage
