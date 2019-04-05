@@ -10,3 +10,95 @@ https://github.com/rchidana/NodeApp
 
 Blog - Jenkinsfile Docker pipeline multi stage :
 http://pietervogelaar.nl/jenkinsfile-docker-pipeline-multi-stage
+
+Docker File Example
+-------------------
+
+stopContainer.sh
+
+#!/bin/sh
+
+if(docker stop CourseApiContainer >/dev/null 2>&1); then
+	echo "docker continaer stopped"	
+else
+	echo "not exist"	
+fi
+
+
+runContainer.sh
+
+#!/bin/sh
+docker run --name  CourseApiContainer -p 80:8090 suswan/course
+
+
+Dockerfile
+
+FROM java:8
+ADD course-api-0.0.1-SNAPSHOT.jar course-api-0.0.1-SNAPSHOT.jar
+ENTRYPOINT ["java", "-jar", "course-api-0.0.1-SNAPSHOT.jar"]
+
+
+JenkinsFile
+
+@Library('dxp-pipeline-library')_
+node {
+	def mvnHome	
+	def methods = new libraryFunctions() 
+
+	stage ('clean') {
+		
+		sh 'bash stopContainer.sh' 		
+		sh 'docker system prune -a --volumes -f'
+		sh 'docker container prune -f'
+		sh 'docker image prune -a -f'
+		echo "~~~docker cleaning done ~~~~~"
+	}
+	stage('Preparation') { // for display purposes
+		// Get some code from a GitHub repository
+		def repo = "https://github.com/suswan-mondal/course-api.git"		
+		checkoutFromRepo(repo)
+
+	}
+	stage('Build') {
+
+		// Get the Maven tool.
+		mvnHome = tool 'mvn3.6'
+
+		// Run the maven builds		
+		mavenBuild(mvnHome)
+		sh 'cp /var/lib/jenkins/workspace/dxpcommerce/target/course-api-0.0.1-SNAPSHOT.jar /var/lib/jenkins/workspace/dxpcommerce' 
+		
+	}
+	stage ('DockerBuild Image'){
+		echo "~~~~~ DockerBuild Images~~~~"
+		//sh 'cd groovy/'
+		sh 'pwd'			
+		
+		app = docker.build("suswan/course")		 
+		docker.withRegistry('https://registry.hub.docker.com', 'docker-hub') {
+        //app.push("${env.BUILD_NUMBER}")
+		app.push("1.0")
+        // app.push("latest")
+        } 
+		
+		echo "~~~~~ push to docker hub done~~~~"
+	}
+	stage('DockerBuild run'){
+		echo "~~~~~ DockerBuild deploy~~~~"
+		sh 'chmod +x runContainer.sh'
+		sh 'nohup ./runContainer.sh > /dev/null 2>&1 &'	
+		
+		//sh 'docker run --name  CourseApiContainer -p 80:8090 suswan/course'
+	}
+	stage('Deploy'){
+		echo "~~~~~ deploy~~~~"
+		//bat "set"		
+		def jarFileName='course-api-0.0.1-SNAPSHOT.jar'
+		//deploy(jarFileName)
+				
+	}
+	stage('Results') {
+		// junit '**/target/surefire-reports/TEST-*.xml'
+		archive 'target/*.jar'
+	}
+}
